@@ -1,15 +1,17 @@
 import Headers
+import Request
 
 
 class Response:
 
-    def __init__(self, status_line: str, headers: Headers, body: bytes):
+    def __init__(self, status_line: str, headers: Headers, body: bytes, request: Request = None):
         http_version, status_code, status_reason = status_line.split(' ', 2)
         self.http_version = http_version
         self.status_code = int(status_code)
         self.status_reason = status_reason.strip()
         self.headers = headers
         self._body = body
+        self.request = request
 
     def __str__(self):
         return f"{self.status_code} {self.status_reason}"

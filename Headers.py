@@ -20,18 +20,20 @@ class Headers:
     maintaining case-insensitive key matching as per HTTP specifications.
     """
 
-    def __init__(self, headers: dict[str, str] | None = None):
-        """Initialize Headers instance with optional dictionary of headers.
+    def __init__(self, headers: dict[str, str] | Self | None = None):
+        """Initialize Headers instance with optional dictionary or Headers instance.
         
         Args:
-            headers (dict[str, str] | None): Initial headers' dictionary. Defaults to None.
+            headers: dict[str, str] | Headers | None: Initial headers dictionary or Headers instance. Defaults to None.
         """
         self.headers = {}
 
         if headers:
-            for k, v in headers.items():
-                self.headers[k.lower()] = v
-
+            if isinstance(headers, Headers):
+                self.headers = copy.deepcopy(headers.headers)
+            else:
+                for k, v in headers.items():
+                    self.headers[k.lower()] = v
 
     def __str__(self):
         """Convert headers to a string format suitable for an HTTP message.
@@ -91,7 +93,6 @@ class Headers:
             new_headers (dict | Self): New headers to add or update
         """
         if isinstance(new_headers, dict):
-            # self.headers.update(new_headers)
             for key, value in new_headers.items():
                 self.set(key, value)
         else:

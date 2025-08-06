@@ -28,13 +28,15 @@ def validate_path_or_throw(path: str):
     return path
 
 class Request:
-    def __init__(self, method: str, path: str, headers: dict | Headers = None, body: str = None, **kwargs):
+    def __init__(self, method: str, path: str, headers: dict | Headers = None, body: str | bytes = None, timeout: float = None, max_redirects: int = 5, max_retries: int = 5, backoff_factor: float = 0.2):
         self.method = method.upper()
         self.headers = Headers(headers if Headers else {})
         self.path = validate_path_or_throw(path)
         self.body = body if method in ["POST", "PATCH", "PUT"] else None
-        self.timeout = kwargs.get("timeout")
-        
+        self.timeout = timeout
+        self.max_redirects = max_redirects
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
 
     @property
     def content(self):
@@ -42,6 +44,13 @@ class Request:
         content += str(self.headers) + "\r\n\r\n"
 
         if self.body:
-            content += self.body
+            if isinstance(self.body, str):
+                content += self.body
+            else:
+                content += self.body.decode()
 
         return content.encode()
+
+    @property
+    def backoff_timeout(self):
+        return self.backoff_factor * (2 ** (self.max_retries - 1))

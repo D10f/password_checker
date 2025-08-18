@@ -2,7 +2,7 @@
 This class represents a date as per RFC9110, to be used in HTTP headers.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 IMF_FIXDATE = "%a, %d %b %Y %X %Z"  # Sun, 06 Nov 1994 08:49:37 GMT
 RFC850_DATE = "%A, %d-%b-%y %X %Z"  # Sunday, 06-Nov-94 08:49:37 GMT
@@ -11,7 +11,10 @@ ASCTIME_DATE = "%a %b %d %X %Y"     # Sun Nov  6 08:49:37 1994
 class HttpDate:
 
     def __init__(self, date_str):
-        self.date = self._parse_http_date(date_str)
+        parsed_date = self._parse_http_date(date_str)
+        tz_unaware_iso_format = parsed_date.isoformat().split(".")[0]
+        tz_aware_datetime = datetime.fromisoformat(tz_unaware_iso_format + "Z")
+        self.date = tz_aware_datetime
 
     @staticmethod
     def _parse_http_date(date_str):
@@ -40,7 +43,7 @@ class HttpDate:
             pass
 
         try:
-            return timedelta(seconds=int(date_str)) + datetime.now()
+            return timedelta(seconds=int(date_str)) + datetime.now(timezone.utc)
         except ValueError:
             pass
 
@@ -49,10 +52,11 @@ class HttpDate:
 
     @property
     def is_future(self):
-        return self.diff_in_seconds > 0
+        return (self.date - datetime.now(timezone.utc)).total_seconds() > 0
 
 
     @property
     def diff_in_seconds(self):
-        return int((datetime.now() - self.date).total_seconds())
+        delta = self.date - datetime.now(timezone.utc)
+        return abs(int(delta.total_seconds()))
 

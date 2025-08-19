@@ -1,10 +1,10 @@
 import socket
-import datetime
 import time
-from urllib.parse import urlparse
+
 from Headers import Headers
 from Response import Response
 from Request import Request
+from HttpDate import HttpDate
 
 DEFAULT_PORT = 80
 DEFAULT_SCHEME = "http"
@@ -14,6 +14,7 @@ DEFAULT_HEADERS = {
     "Accept-Encoding": "gzip"
 }
 BUFFER_SIZE = 4096
+DEFAULT_RETRY_AFTER_TIMEOUT = 600
 
 class HTTPClient:
     def __init__(self, host: str, port: int = DEFAULT_PORT):
@@ -60,7 +61,11 @@ class HTTPClient:
         response = self._initiate_request('GET', path, headers, **kwargs)
 
         if response.status_code == 301:
-            pass
+            return self._handle_redirect(response)
+
+        if response.status_code == 429:
+            return self._handle_retry_after(response)
+            # return self.get("/", headers, **kwargs)
 
         return response
 
@@ -77,32 +82,53 @@ class HTTPClient:
         request = Request(method, path, request_headers, body, **kwargs)
         return self._send(request)
 
+
+    def _handle_retry_after(self, response: Response, timeout: int = DEFAULT_RETRY_AFTER_TIMEOUT):
+        retry_after = response.headers.get('Retry-After')
+        req: Request = response.request
+
+        if req.max_retries <= 0:
+            raise RuntimeError("Maximum retries exceeded")
+
+        if not retry_after:
+            time_to_sleep = req.backoff_factor
+        else:
+            http_date = HttpDate(retry_after)
+
+            if not http_date.is_future:
+                raise RuntimeError("Retry-After header is in the past.")
+
+            print("Retry-After: ", http_date.date)
+            time_to_sleep = http_date.diff_in_seconds
+
+        if time_to_sleep > timeout:
+            raise RuntimeError("Retry-After/Backoff period is too great.")
+
+        print("Redirecting after", time_to_sleep, "seconds.")
+        time.sleep(time_to_sleep)
+        return self.get(req.path, headers=req.headers, timeout=req.timeout, max_retries=req.max_retries - 1)
+
+
     def _handle_redirect(self, response: Response):
 
-        req = response.request
+        req: Request = response.request
+        location = response.headers.get('Location')
+        retry_after = response.headers.has('Retry-After')
 
         if req.max_redirects <= 0:
             raise RuntimeError("Maximum redirects exceeded")
 
-        location = response.headers.get('Location')
-        retry_after = response.headers.get('Retry-After')
-
         if not location:
             raise RuntimeError("Redirect response missing Location header")
+
+        if retry_after:
+            req.path = location
+            return self._handle_retry_after(response)
 
         # Handle HTTPS upgrade
         # redirect_url = urlparse(location)
         # if redirect_url.scheme == 'https':
         #     pass
-
-        if retry_after:
-            try:
-                retry_after = int(retry_after)
-            except ValueError:
-                retry_after = datetime.datetime.strptime(retry_after, "%a, %d %b %Y %X %Z")
-
-            # formatted_date = datetime.datetime.strptime(d, "%a, %d %b %Y %X %Z")
-            # time.sleep(int(retry_after))
 
         return self.get(location, headers=req.headers, timeout=req.timeout, max_redirects=req.max_redirects - 1)
 

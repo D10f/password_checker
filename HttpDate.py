@@ -33,7 +33,13 @@ class HttpDate:
             pass
 
         try:
-            return datetime.strptime(date_str, RFC850_DATE)
+            dt = datetime.strptime(date_str, RFC850_DATE)
+            delta = datetime.now(timezone.utc) - dt
+
+            if delta.days < 0 or abs(delta.days) // 365 >= 50:
+                raise RuntimeError("This is a date in the past")
+
+            return dt
         except ValueError:
             pass
 

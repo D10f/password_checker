@@ -27,7 +27,8 @@ class Response:
 
         if "charset" in content_type:
             _, charset_type = content_type.split("charset=", 1)
-            charset_type = charset_type.strip(";", 1)[0]
+            charset_type = charset_type.strip(";")
+            # charset_type = charset_type.strip(";", 1)[0]
 
             if charset_type.startswith("'") or charset_type.startswith('"'):
                 charset = charset_type[1:-1]
